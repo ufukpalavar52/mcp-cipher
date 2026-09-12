@@ -10,3 +10,6 @@
 .env.*
 !.env.example
 *.log
+
+# IDE files. GoLand writes vcs.xml the moment a repository appears.
+.idea/
