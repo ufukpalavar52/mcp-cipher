@@ -1,0 +1,12 @@
+# Never commit a key, even by accident.
+.env
+*.key
+
+# Build output
+/out/
+/mcp-cipher
+
+# Local build output and logs.
+.env.*
+!.env.example
+*.log
