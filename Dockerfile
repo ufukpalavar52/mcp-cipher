@@ -2,6 +2,19 @@
 FROM golang:1.26-alpine AS build
 WORKDIR /build
 COPY go.mod go.sum ./
+
+# Where modules come from. The default goes through proxy.golang.org, which serves the
+# archives themselves from storage.googleapis.com — a host some networks block, and the
+# failure looks like a broken build rather than a blocked one:
+#
+#   dial tcp: lookup storage.googleapis.com: no such host
+#
+# `--build-arg GOPROXY=direct` fetches from each module's own origin instead. Slower,
+# and it needs git in the image, so it is not the default.
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY:-https://proxy.golang.org,direct}
+RUN if [ "$GOPROXY" = "direct" ]; then apk add --no-cache git; fi
+
 # Warm the module cache before the sources are copied, so a code change does not
 # invalidate the download layer.
 RUN go mod download
