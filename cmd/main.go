@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
 	"mcp-cipher/internal/config"
@@ -76,6 +77,26 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(server.TokenInterceptor(cfg.Token)),
+
+		// Permission for clients to ping while idle, which is the only way they find out
+		// their connection has died.
+		//
+		// An executor builds one client and keeps it for the life of the process, and its
+		// jobs can be days apart. Nothing between the two containers tells either end when
+		// it drops an idle connection, so the client goes on believing it is connected and
+		// the next call blocks until its deadline: a job on 24 September failed five
+		// seconds in — the cipher timeout exactly — and this service's log had nothing for
+		// that day, because the call never arrived.
+		//
+		// The client's answer is to ping every thirty seconds. Without this it would be
+		// disconnected for doing so: the default policy tolerates a ping every five
+		// minutes and none at all while no call is in flight, which is precisely the idle
+		// stretch in question. Twenty seconds leaves the client's thirty a margin, so a
+		// little clock drift is not read as an attack.
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             20 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	)
 
 	pb.RegisterCipherServiceServer(grpcServer, server.New(ring, log))
